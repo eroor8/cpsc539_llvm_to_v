@@ -12,7 +12,7 @@
   ; Either a register index or a
   [a-or-r ::= a reg-i]
   ; Values: 32-bit ints are the only type supported
-  [a ::= integer]
+  [a ::= integer UNDEFINED]
   ; Indexes: mapping to register values, labels
   [reg-i ::= variable-not-otherwise-mentioned]   
   [lbl-i ::= variable-not-otherwise-mentioned]
@@ -22,17 +22,18 @@
   ; Instructions:
   [l ::=
      (br label lbl-i)                      ; branch to label 'lbl-i'
-     (reg-i = icmp slt a reg-i reg-i)      ; set reg-i0 to 1 if reg-i1 < reg-i2
+     (reg-i = icmp slt t reg-i reg-i)      ; set reg-i0 to 1 if reg-i1 < reg-i2
      (br i1 reg-i label lbl-i label lbl-i) ; if reg-i is 1, branch to lbl-i0 else lbl-i1
      (reg-i = mul nsw t reg-i a)           ; set reg-i to reg-i * a (of type t)
      (reg-i = add nsw t reg-i a)           ; set reg-i to reg-i + a (of type t)
      ; If the last label was lbl-i0, set reg-i to a-or-r0, else a-or-r1
      (reg-i = phi t [a-or-r lbl-i] [a-or-r lbl-i])
-     (ret i32 reg-i)                       ; return reg-i
+     (ret t reg-i)                       ; return reg-i
      (l l)                                 ; l is a sequence of instructions
+     UNDEFINED
      ]  
   ; p is the program: a sequence of labels followed by sequences of instructions
-  [p ::= (label: lbl-i l p)]
+  [p ::= empty (label lbl-i l p)]
   [c ::= lbl-i]
 )
 
@@ -43,15 +44,22 @@
 (define-metafunction MyLLVM    ; define less than
   lesser : any any -> any
   [(lesser any_1 any_2) ,(< (term any_1) (term any_2))])
-(define-metafunction MyLLVM    ; define greater than
-  greater : any any -> any
-  [(greater any_1 any_2) ,(> (term any_1) (term any_2))])
 (define-metafunction MyLLVM    ; define multiplication
   multiply : any any -> any
   [(multiply any_1 any_2) , (* (term any_1) (term any_2))])
 (define-metafunction MyLLVM    ; define addition
-  add : any any -> any
-  [(add any_1 any_2) , (+ (term any_1) (term any_2))])
+  addi : any any -> any
+  [(addi any_1 any_2) , (+ (term any_1) (term any_2))])
+
+; Test metafunctions
+(term (different (term 0) (term 1)))
+(not (term (different (term 0) (term 0))))
+(term (lesser 0 1))
+(not (term (lesser 1 1)))
+(equal? (term (multiply 2 10)) 20)
+(not (equal? (term (multiply 2 10)) 1))
+(equal? (term (addi 2 10)) 12)
+(not (equal? (term (add 2 10)) 10))
 
 ; Lookup reg-i index to find corresponding value
 (define-judgment-form MyLLVM
@@ -62,30 +70,77 @@
    (reg-lookup (R reg-i a) reg-i a)]
   ; Matching key is not last pair
   [(reg-lookup R reg-i_2 a_2)
+   (where #t (different a_2 UNDEFINED))
    ----- "Lookup-Reg-NotLast"
-   (reg-lookup (R reg-i_1 a_1) reg-i_2 a_2)])
+   (reg-lookup (R reg-i_1 a_1) reg-i_2 a_2)]
+  ; Matching key is not in empty dict
+  [
+   ----- "Lookup-Reg-Empty"
+   (reg-lookup empty reg-i UNDEFINED)]
+  [(reg-lookup R reg-i UNDEFINED)
+   (where #t (different reg-i reg-i_2))
+   ----- "Lookup-Reg-Not-Found"
+   (reg-lookup (R reg-i_2 a) reg-i UNDEFINED)]
+   )
 
+(judgment-holds (reg-lookup ((empty j 10) t 9) j 10)) ; Lookup-Reg-Last
+(judgment-holds (reg-lookup ((empty j 10) t 9) t 9)) ; Lookup-Reg-NotLast
+(judgment-holds (reg-lookup empty t UNDEFINED)) ; Lookup-Reg-Empty
+(judgment-holds (reg-lookup (empty j 10) t UNDEFINED)) ; Lookup-Reg-Not-Found
+ 
 ; Set register reg-i to value a in new register file
 (define-judgment-form  MyLLVM
   #:contract (reg-set R reg-i a R)
   #:mode (reg-set I I I O)
   ; Replace existing key
-  [----- "Set-Reg-Existing"
+  [
+   ----- "Set-Reg-Existing"
    (reg-set (R reg-i a) reg-i a_2 (R reg-i a_2))]
   ; Add new key
-  [----- "Set-Reg-New"
-   (reg-set R reg-i a (R reg-i a))])
+  [(reg-lookup R reg-i UNDEFINED)
+   ----- "Set-Reg-New"
+   (reg-set R reg-i a (R reg-i a))]
+)
 
-; Lookup lbl-i index to find corresponding set of instructions in the program
+; For some reason, doesn't work with moded judgment... hmmm...
+;(judgment-holds
+;   reg-set
+;   (derivation
+;    `(reg-set (empty t 9) t 10 (empty t 10))
+;    "Set-Reg-Existing"
+;    (list)))
+;(judgment-holds
+;   reg-set
+;   (derivation
+;    `(reg-set (empty j 9) t 10 ((empty j 9) t 10))
+;    "Set-Reg-New"
+;    (list)))
+
 (define-judgment-form  MyLLVM
   #:contract (label-lookup p lbl-i l)
   #:mode (label-lookup I I O)
   ; Find section of program corresponding to lbl-i
   [----- "Lookup-Label-First"
-   (label-lookup (label: lbl-i l p) lbl-i l)]
+   (label-lookup (label lbl-i l p) lbl-i l)]
   [(label-lookup p lbl-i_2 l_2)
+   (where #t (different l_2 UNDEFINED))
    ----- "Lookup-Label-NotFirst"
-   (label-lookup (label: lbl-i l p) lbl-i_2 l_2)])
+   (label-lookup (label lbl-i l p) lbl-i_2 l_2)]
+ ; Matching key is not in empty dict
+  [
+   ----- "Lookup-Label-Empty"
+   (label-lookup empty lbl-i UNDEFINED)]
+  [(label-lookup p lbl-i UNDEFINED)
+   (where #t (different lbl-i lbl-i_2))
+   ----- "Lookup-Label-Not-Found"
+   (label-lookup (label lbl-i_2 l p) lbl-i UNDEFINED)]
+  )
+
+; Test looking up labels
+(judgment-holds (label-lookup (label kra (br label fr) (label fr (br label kra) empty)) kra (br label fr))) ; first
+(judgment-holds (label-lookup (label kra (br label fr) (label fr (br label kra) empty)) fr (br label kra))) ; second
+(judgment-holds (label-lookup empty fr UNDEFINED)) ; empty
+(judgment-holds (label-lookup (label kra (br label fr) empty) fr UNDEFINED)) ; second
 
 (define-judgment-form  MyLLVM
   ; Step one instruction
@@ -94,6 +149,7 @@
   ; l is the current instruction, first c is the previous label
   ; second c is the current label
   #:contract (--> p R l c c R l c c)
+  #:mode     (--> I I I I I O O O O)
   ; Lookup input register in the register file, multiply by the value, set reg-i
   [(reg-lookup R reg-i_2 a_2)
    (reg-set R reg-i (multiply a_2 a_1) R_2) 
@@ -101,7 +157,7 @@
    (--> p R ((reg-i = mul nsw t reg-i_2 a_1) l_2) c c_1 R_2 l_2 c c_1)]
   ; Lookup input register in the register file, add to the value, set reg-i
   [(reg-lookup R reg-i_2 a_2)
-   (reg-set R reg-i (add a_2 a_1) R_2) 
+   (reg-set R reg-i (addi a_2 a_1) R_2) 
    ----- "Step-Add"
    (--> p R ((reg-i = add nsw t reg-i_2 a_1) l_2) c c_1 R_2 l_2 c c_1)]
   ; Lookup first input register in the register file, set reg-i if label matches
@@ -139,22 +195,30 @@
   ; Branch to lbl-i and update the previous label to the current one
   [(label-lookup p lbl-i l)
    ----- "Branch"
-   (--> p R (br label lbl-i) c c_1 R_2 l c_1 lbl-i)]
+   (--> p R (br label lbl-i) c c_1 R l c_1 lbl-i)]
   ; Branch if reg-i value is 1 to lbl-i
   [(label-lookup p lbl-i l)
    (reg-lookup R reg-i a_1)
    (where #f (different a_1 1))
    ----- "Branch-i1"
-   (--> p R (br i1 reg-i label lbl-i label lbl-i_2) c c_1 R_2 l c_1 lbl-i)]
-  ; Branch if reg-i value is 0 to lbl-i_2
+   (--> p R (br i1 reg-i label lbl-i label lbl-i_2) c c_1 R l c_1 lbl-i)]
+  ; Branch if reg-i value is not 1 to lbl-i_2
   [(label-lookup p lbl-i_2 l)
    (reg-lookup R reg-i a_1)
    (where #t (different a_1 1))
    ----- "Branch-i0"
-   (--> p R (br i1 reg-i label lbl-i label lbl-i_2) c c_1 R_2 l c_1 lbl-i_2)]
+   (--> p R (br i1 reg-i label lbl-i label lbl-i_2) c c_1 R l c_1 lbl-i_2)]
 )
 
-; add evaluation condition
-; model verilog
-; model compilation
-; show something!
+(judgment-holds (--> (label k (br label k) empty) (empty g 4) ((f = mul nsw i32 g 5) (br label k)) k k ((empty g 4) f 20) (br label k) k k)) ; Step-Mul
+(judgment-holds (--> (label k (br label k) empty) (empty g 4) ((f = add nsw i32 g 5) (br label k)) k k ((empty g 4) f 9) (br label k) k k)) ; Step-Add
+(judgment-holds (--> (label k (br label k) empty) (empty g 4) ((m = phi i32 [g k] [8 n]) (br label k)) k k ((empty g 4) m 4) (br label k) k k)) ; Set-Phi-Reg-First
+(judgment-holds (--> (label k (br label k) empty) (empty g 4) ((m = phi i32 [0 k] [8 n]) (br label k)) k k ((empty g 4) m 0) (br label k) k k)) ; Set-Phi-Value-First
+(judgment-holds (--> (label k (br label k) empty) (empty g 2) ((m = phi i32 [0 k] [g n]) (br label k)) n k ((empty g 2) m 2) (br label k) n k)) ; Set-Phi-Reg-Second
+(judgment-holds (--> (label k (br label k) empty) (empty g 4) ((m = phi i32 [0 k] [8 n]) (br label k)) n k ((empty g 4) m 8) (br label k) n k)) ; Set-Phi-Value-Second
+(judgment-holds (--> (label k (br label k) empty) ((empty g 4) j 9) ((m = icmp slt i32 g j) (br label k)) n k (((empty g 4) j 9) m 1) (br label k) n k)) ; ICMP-Less
+(judgment-holds (--> (label k (br label k) empty) (empty g 4) ((m = icmp slt i32 g g) (br label k)) n k ((empty g 4) m 0) (br label k) n k)) ; ICMP-Not-Less
+(judgment-holds (--> (label kr (br label fr) empty) (empty g 4) (br label kr) kr fr (empty g 4) (br label fr) fr kr)) ; Branch
+(judgment-holds (--> (label kr (br label fr) (label fr (br label kr) empty)) (empty g 1) (br i1 g label kr label fr) kr fr (empty g 1) (br label fr) fr kr)) ; Br-i1
+(judgment-holds (--> (label kr (br label fr) (label fr (br label kr) empty)) (empty g 4) (br i1 g label kr label fr) kr fr (empty g 4) (br label kr) fr fr)) ; Br-i0
+
