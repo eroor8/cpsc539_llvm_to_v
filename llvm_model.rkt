@@ -96,25 +96,22 @@
   [
    ----- "Set-Reg-Existing"
    (reg-set (R reg-i a) reg-i a_2 (R reg-i a_2))]
+  [(reg-lookup R reg-i_2 a_4)
+   (where #t (different a_4 UNDEFINED))
+   (where #t (different reg-i reg-i_2))
+   (reg-set R reg-i_2 a_2 R_2)
+   ----- "Set-Reg-Existing-Inner"
+   (reg-set (R reg-i a) reg-i_2 a_2 (R_2 reg-i a))]
   ; Add new key
   [(reg-lookup R reg-i UNDEFINED)
    ----- "Set-Reg-New"
    (reg-set R reg-i a (R reg-i a))]
 )
-
+ 
 ; For some reason, doesn't work with moded judgment... hmmm...
-;(judgment-holds
-;   reg-set
-;   (derivation
-;    `(reg-set (empty t 9) t 10 (empty t 10))
-;    "Set-Reg-Existing"
-;    (list)))
-;(judgment-holds
-;   reg-set
-;   (derivation
-;    `(reg-set (empty j 9) t 10 ((empty j 9) t 10))
-;    "Set-Reg-New"
-;    (list)))
+(judgment-holds (reg-set (empty t 9) t 10 (empty t 10)))       ; Existing
+(judgment-holds (reg-set ((empty t 9) j 10) t 10 ((empty t 10) j 10))) ; Inner 
+(judgment-holds (reg-set (empty j 9) t 10 ((empty j 9) t 10))) ; New
 
 (define-judgment-form  MyLLVM
   #:contract (label-lookup p lbl-i l)
@@ -252,7 +249,6 @@
   #:mode     (eval I I O)
   ; (ret t reg-i)
   [(label-lookup p main l)
-   ;(where #t (different l UNDEFINED))
    (run p R l main main R_2 (ret i32 reg-i) c_0 c_1)
    (reg-lookup R_2 reg-i a)
    ----- "Step-Mul"
@@ -261,3 +257,8 @@
 
 (judgment-holds (eval (label main ((g = add nsw i32 g 1) (ret i32 g)) empty) (empty g 5) 6))
 (judgment-holds (eval (label main ((g = add nsw i32 g 1) ((g = mul nsw i32 g 2) (ret i32 g))) empty) (empty g 5) 12))
+
+;Example: Compute 2^rd 
+(judgment-holds (eval (label main (br label one) (label one ((rv = phi i32 [2 main] [rfour two]) ((ri = phi i32 [1 main] [rfive two]) ((rtwo = icmp slt i32 ri rd) (br i1 rtwo label two label three)))) (label two ((rfour = mul nsw i32 rv 2) ((rfive = add nsw i32 ri 1)(br label one))) (label three (ret i32 rv) empty)))) (empty rd 5) 32))
+
+(judgment-holds (eval (label main (br label one) (label one ((rv = phi i32 [2 main] [rfour two]) ((ri = phi i32 [1 main] [rfive two]) ((rtwo = icmp slt i32 ri rd) (br i1 rtwo label two label three)))) (label two ((rfour = mul nsw i32 rv 2) ((rfive = add nsw i32 ri 1)(br label one))) (label three (ret i32 rv) empty)))) (empty rd 1) 2))
