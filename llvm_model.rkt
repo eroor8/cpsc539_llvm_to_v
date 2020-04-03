@@ -222,3 +222,42 @@
 (judgment-holds (--> (label kr (br label fr) (label fr (br label kr) empty)) (empty g 1) (br i1 g label kr label fr) kr fr (empty g 1) (br label fr) fr kr)) ; Br-i1
 (judgment-holds (--> (label kr (br label fr) (label fr (br label kr) empty)) (empty g 4) (br i1 g label kr label fr) kr fr (empty g 4) (br label kr) fr fr)) ; Br-i0
 
+(define-judgment-form  MyLLVM
+  ; Step many times
+  ; p c R -> a
+  ; Where p is the program, c is the starting label and
+  ; R are the input registers
+  #:contract (run p R l c c R l c c)
+  #:mode     (run I I I I I O O O O)
+  [(--> p R l c_0 c_1 R_10 l_10 c_10 c_11)
+   (run p R_10 l_10 c_10 c_11 R_2 l_2 c_2 c_3)
+   ----- "Run"
+   (run p R l c_0 c_1 R_2 l_2 c_2 c_3)]
+  [(--> p R l c_0 c_1 R_2 l_2 c_2 c_3)
+   ----- "Run-Single"
+   (run p R l c_0 c_1 R_2 l_2 c_2 c_3)]
+  )
+
+(judgment-holds (run (label main ((g = add nsw i32 g 1) (ret i32 g)) empty) (empty g 5) ((g = add nsw i32 g 1) (ret i32 g)) main main (empty g 6) (ret i32 g) main main))
+(judgment-holds (run (label main ((g = add nsw i32 g 1) ((g = mul nsw i32 g 2) (ret i32 g))) empty) (empty g 5) ((g = add nsw i32 g 1) ((g = add nsw i32 g 1) (ret i32 g))) main main (empty g 6) ((g = add nsw i32 g 1) (ret i32 g)) main main))
+(judgment-holds (run (label main ((g = add nsw i32 g 1) ((g = add nsw i32 g 1) (ret i32 g))) empty) (empty g 5) ((g = add nsw i32 g 1) ((g = add nsw i32 g 1) (ret i32 g))) main main (empty g 7) (ret i32 g) main main))
+(judgment-holds (run (label main ((g = add nsw i32 g 1) ((g = mul nsw i32 g 2) (ret i32 g))) empty) (empty g 5) ((g = add nsw i32 g 1) ((g = mul nsw i32 g 2) (ret i32 g))) main main (empty g 12) (ret i32 g) main main))
+
+(define-judgment-form  MyLLVM
+  ; Step until we reach return
+  ; p c R -> a
+  ; Where p is the program, c is the starting label and
+  ; R are the input registers
+  #:contract (eval p R a)
+  #:mode     (eval I I O)
+  ; (ret t reg-i)
+  [(label-lookup p main l)
+   ;(where #t (different l UNDEFINED))
+   (run p R l main main R_2 (ret i32 reg-i) c_0 c_1)
+   (reg-lookup R_2 reg-i a)
+   ----- "Step-Mul"
+   (eval p R a)]
+)
+
+(judgment-holds (eval (label main ((g = add nsw i32 g 1) (ret i32 g)) empty) (empty g 5) 6))
+(judgment-holds (eval (label main ((g = add nsw i32 g 1) ((g = mul nsw i32 g 2) (ret i32 g))) empty) (empty g 5) 12))
