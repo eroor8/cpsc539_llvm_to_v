@@ -1,5 +1,10 @@
 #lang racket
-; assume that comb blocks dont have loops
+; Notes:
+;   assume that comb blocks dont have loops
+;   assume one combinational block, one synchronous block and one list
+;      of initializations
+;   assume only blocking assignments in comb blocks,
+;      only nonblocking assignments in sync. blocks
 
 (require
    racket/match
@@ -8,73 +13,89 @@
 (provide (all-defined-out))
 
 (define-language MyVerilog
-  [P ::= module any beginmodule inits comb-logic sync-logic endmodule]
-  [io-type ::= input output none]
-  [rw-type ::= reg wire]
-  [index-decl ::= none [integer : integer]]           ; value types
-  [a-or-r ::= a reg-i]
+  ; A program is 'module main beginmodule
+  ;                  <initializations>
+  ;                  <comb block>
+  ;                  <sync block>
+  ;               endmodule'
+  ; Limitation: only one block of each type
+  [P ::= module main beginmodule inits comb-logic sync-logic endmodule]
+  [io-type ::= input output none]                ; used in declarations
+  [rw-type ::= reg wire]                         ; reg or wire
+  [index-decl ::= none [integer : integer]]      ; used to specify bit width
   [a ::= integer]
   [reg-i ::= variable-not-otherwise-mentioned]   ; reg index
   [wire-i ::= variable-not-otherwise-mentioned]  ; reg index
-  [e ::= reg-i wire-i a c]  ; reg index
-  [rw-i ::= reg-i wire-i]  ; reg index
-  [R ::= finish                                   ; Registers
-         (R reg-i integer)]                      
-  [W ::= empty                                    ; Wires
-         (W wire-i e)]                   
-  [comb-logic ::= empty                              
-         (comb-logic comb-logic-block)]      
-  [sync-logic ::= empty                           
-         (sync-logic sync-logic-block)]    
+  [rw-i ::= reg-i wire-i]                        ; a register or wire index
+  [R ::= empty                                   ; Registers
+         (R reg-i integer)]
+  [W ::= empty                                   ; Wires
+     (W wire-i e)]
+
+  ; Combinational and synchronous logic blocks must contain blocking and
+  ; non blocking assignments respectively.
   [comb-logic-block ::= always@(*) begin l-blocking]
   [sync-logic-block ::= always@(posedge clk) begin l-nonblocking]
-  [c ::= (e == e)                        ; conditions   
-         (e < e)                             ; branch to label e
-         (e > e)                             ; branch to label e
-         (e > e) 
-         (e * e)                      ; conditions   
-         (e + e)                      ; branch to label e
-         (e <<< e)                    ; branch to label e
+
+  ; Expressions : wires, registers, values, computation results
+  [e ::= (e == e)
+         (e < e)
+         (e > e)
+         (e > e)
+         (e * e)
+         (e + e)
+         (e <<< e)
+         reg-i
+         wire-i
+         a
   ]
-  [case-list-b ::= a l-blocking end]
+  [case-list-b ::= a l-blocking end]      ; case statement option
   [case-list-nb ::= a l-nonblocking end]
-  [l-blocking ::=                                ; instructions   
+
+  ; Instructions - includes if else, case, assignments
+  [l-blocking ::=
      (if e begin l-blocking else begin l-blocking)
-     (case (e) case-list-b endcase)
-     (reg-i <= e)
+     (case (e) case-list-b endcase)  ; case statement
+     (reg-i <= e)                    ; Blocking assignment
      (l-blocking l-blocking)
-     end
-  ]
-  [l-nonblocking ::=                             ; instructions   
+     end                             ; end of sequence of blocking instrs
+     ]
+  [l-nonblocking ::=
      (if e begin l-nonblocking else begin l-nonblocking)
-     (wire-i = e)
+     (wire-i = e)                    ; nonblocking assignment
      (l-nonblocking l-nonblocking)
      end
   ]
-  [inits ::= empty (inits init)]
-  [init ::= (input wire clk) (io-type rw-type index-decl rw-i)]
+  ; Initializations specify IOtype, logic type, bit width and name.
+  [init ::= (io-type rw-type index-decl rw-i)]
+  ; List of initializations.
+  ; Should always include clk, result, start, finish
+  [inits ::= (inits init)]     ; list of initializations
 )
 
-(define-metafunction MyVerilog
-  shift-left : any any -> any
-  [(shift-left any_1 any_2) ,(* (^ 2 (term any_2)) (term any_1))])
-
+; Define metafunctions to do comparisons, computations
+;(define-metafunction MyVerilog
+;  shift-left : any any -> any
+;  [(shift-left any_1 any_2) ,(* (2 (shift-left any_1 (- any_2 1))))])
 (define-metafunction MyVerilog
   same : any any -> any
   [(same any_1 any_2) ,(equal? (term any_1) (term any_2))])
-
+(define-metafunction MyVerilog
+    biggest : natural natural -> natural
+    [(biggest natural_1 natural_2)
+     natural_2
+     (side-condition (< (term natural_1) (term natural_2)))]
+    [(biggest natural_1 natural_2)
+     natural_1])
 (define-metafunction MyVerilog
   different : any any -> any
   [(different any_1 any_2) ,(not (equal? (term any_1) (term any_2)))])
-
 (define-metafunction MyVerilog
   greater : any any -> any
   [(greater any_1 any_2) ,(> (term any_1) (term any_2))])
-
 (define-metafunction MyVerilog
   multiply : any any -> any
   [(multiply any_1 any_2) , (* (term any_1) (term any_2))])
-
 (define-metafunction MyVerilog
   add : any any -> any
   [(add any_1 any_2) , (+ (term any_1) (term any_2))])
@@ -133,19 +154,19 @@
    (eval e a R W)]
 )
 
-(define-judgment-form  MyVerilog ; evaluate blocking instr
-  #:contract (eval-b e a R W a)
-  [
-   -----
-   (eval-b end R W 1)]
-  [(wire-set W wire-i e W_2)
-   -----
-   (eval-b ((wire-i = e) l-blocking) R W_2 0)]
-)
+;(define-judgment-form  MyVerilog ; evaluate blocking instr
+;  #:contract (eval-b l-blocking R W a)
+;  [
+;   -----
+;   (eval-b end R W 1)]
+;  [(wire-set W wire-i e W_2)
+;   -----
+;   (eval-b ((wire-i = e) l-blocking) R W_2 0)]
+;)
 
-(define-judgment-form  MyVerilog ; evaluate nonblocking instr
-  #:contract (eval-nb e a R W)
-  [(--> e a R W)
-   -----
-   (eval e a R W)]
-)
+;(define-judgment-form  MyVerilog ; evaluate nonblocking instr
+;  #:contract (eval-nb l-nonblocking a R W)
+;  [(--> e l-nonblocking a R W)
+;   -----
+;   (eval-nb l-nonblocking a R W)]
+;)

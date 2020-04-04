@@ -109,9 +109,9 @@
 )
  
 ; For some reason, doesn't work with moded judgment... hmmm...
-(judgment-holds (reg-set (empty t 9) t 10 (empty t 10)))       ; Existing
-(judgment-holds (reg-set ((empty t 9) j 10) t 10 ((empty t 10) j 10))) ; Inner 
-(judgment-holds (reg-set (empty j 9) t 10 ((empty j 9) t 10))) ; New
+(judgment-holds (reg-set (empty t 9) t 10 R) R)       ; Existing > (empty t 9) 
+(judgment-holds (reg-set ((empty t 9) j 10) t 10 R) R) ; Inner > ((empty t 10) j 10)
+(judgment-holds (reg-set (empty j 9) t 10 R) R) ; New > ((empty j 9) t 10) 
 
 (define-judgment-form  MyLLVM
   #:contract (label-lookup p lbl-i l)
