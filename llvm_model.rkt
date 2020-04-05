@@ -22,7 +22,7 @@
   ; Instructions:
   [l ::=
      (br label lbl-i)                      ; branch to label 'lbl-i'
-     (reg-i = icmp slt t reg-i reg-i)      ; set reg-i0 to 1 if reg-i1 < reg-i2
+     (reg-i = icmp sle t reg-i reg-i)      ; set reg-i0 to 1 if reg-i1 < reg-i2
      (br i1 reg-i label lbl-i label lbl-i) ; if reg-i is 1, branch to lbl-i0 else lbl-i1
      (reg-i = mul nsw t reg-i a)           ; set reg-i to reg-i * a (of type t)
      (reg-i = add nsw t reg-i a)           ; set reg-i to reg-i + a (of type t)
@@ -43,7 +43,7 @@
   [(different any_1 any_2) ,(not (equal? (term any_1) (term any_2)))])
 (define-metafunction MyLLVM    ; define less than
   lesser : any any -> any
-  [(lesser any_1 any_2) ,(< (term any_1) (term any_2))])
+  [(lesser any_1 any_2) ,(not (> (term any_1) (term any_2)))])
 (define-metafunction MyLLVM    ; define multiplication
   multiply : any any -> any
   [(multiply any_1 any_2) , (* (term any_1) (term any_2))])
@@ -55,7 +55,7 @@
 (term (different (term 0) (term 1)))
 (not (term (different (term 0) (term 0))))
 (term (lesser 0 1))
-(not (term (lesser 1 1)))
+(term (lesser 1 1))
 (equal? (term (multiply 2 10)) 20)
 (not (equal? (term (multiply 2 10)) 1))
 (equal? (term (addi 2 10)) 12)
@@ -181,14 +181,14 @@
    (reg-set R reg-i 1 R_2)
    (where #t (lesser a_2 a_3))
    ----- "ICMP-Less"
-   (--> p R ((reg-i = icmp slt t reg-i_1 reg-i_2) l_2) c c_1 R_2 l_2 c c_1)]
+   (--> p R ((reg-i = icmp sle t reg-i_1 reg-i_2) l_2) c c_1 R_2 l_2 c c_1)]
   ; Set reg-i to 0 if reg-i_1 >= reg-i_2
   [(reg-lookup R reg-i_1 a_2)
    (reg-lookup R reg-i_2 a_3)
    (reg-set R reg-i 0 R_2)
    (where #f (lesser a_2 a_3))
    ----- "ICMP-NotLess"
-   (--> p R ((reg-i = icmp slt t reg-i_1 reg-i_2) l_2) c c_1 R_2 l_2 c c_1)]
+   (--> p R ((reg-i = icmp sle t reg-i_1 reg-i_2) l_2) c c_1 R_2 l_2 c c_1)]
   ; Branch to lbl-i and update the previous label to the current one
   [(label-lookup p lbl-i l)
    ----- "Branch"
@@ -213,8 +213,8 @@
 (judgment-holds (--> (label k (br label k) empty) (empty g 4) ((m = phi i32 [0 k] [8 n]) (br label k)) k k ((empty g 4) m 0) (br label k) k k)) ; Set-Phi-Value-First
 (judgment-holds (--> (label k (br label k) empty) (empty g 2) ((m = phi i32 [0 k] [g n]) (br label k)) n k ((empty g 2) m 2) (br label k) n k)) ; Set-Phi-Reg-Second
 (judgment-holds (--> (label k (br label k) empty) (empty g 4) ((m = phi i32 [0 k] [8 n]) (br label k)) n k ((empty g 4) m 8) (br label k) n k)) ; Set-Phi-Value-Second
-(judgment-holds (--> (label k (br label k) empty) ((empty g 4) j 9) ((m = icmp slt i32 g j) (br label k)) n k (((empty g 4) j 9) m 1) (br label k) n k)) ; ICMP-Less
-(judgment-holds (--> (label k (br label k) empty) (empty g 4) ((m = icmp slt i32 g g) (br label k)) n k ((empty g 4) m 0) (br label k) n k)) ; ICMP-Not-Less
+(judgment-holds (--> (label k (br label k) empty) ((empty g 4) j 9) ((m = icmp sle i32 g j) (br label k)) n k (((empty g 4) j 9) m 1) (br label k) n k)) ; ICMP-Less
+(judgment-holds (--> (label k (br label k) empty) (empty g 4) ((m = icmp sle i32 g g) (br label k)) n k ((empty g 4) m 0) (br label k) n k)) ; ICMP-Not-Less
 (judgment-holds (--> (label kr (br label fr) empty) (empty g 4) (br label kr) kr fr (empty g 4) (br label fr) fr kr)) ; Branch
 (judgment-holds (--> (label kr (br label fr) (label fr (br label kr) empty)) (empty g 1) (br i1 g label kr label fr) kr fr (empty g 1) (br label fr) fr kr)) ; Br-i1
 (judgment-holds (--> (label kr (br label fr) (label fr (br label kr) empty)) (empty g 4) (br i1 g label kr label fr) kr fr (empty g 4) (br label kr) fr fr)) ; Br-i0
@@ -259,6 +259,6 @@
 (judgment-holds (eval (label main ((g = add nsw i32 g 1) ((g = mul nsw i32 g 2) (ret i32 g))) empty) (empty g 5) 12))
 
 ;Example: Compute 2^rd 
-(judgment-holds (eval (label main (br label one) (label one ((rv = phi i32 [2 main] [rfour two]) ((ri = phi i32 [1 main] [rfive two]) ((rtwo = icmp slt i32 ri rd) (br i1 rtwo label two label three)))) (label two ((rfour = mul nsw i32 rv 2) ((rfive = add nsw i32 ri 1)(br label one))) (label three (ret i32 rv) empty)))) (empty rd 5) 32))
+(judgment-holds (eval (label main (br label one) (label one ((rv = phi i32 [1 main] [rfour two]) ((ri = phi i32 [1 main] [rfive two]) ((rtwo = icmp sle i32 ri rd) (br i1 rtwo label two label three)))) (label two ((rfour = mul nsw i32 rv 2) ((rfive = add nsw i32 ri 1)(br label one))) (label three (ret i32 rv) empty)))) (empty rd 5) 32))
 
-(judgment-holds (eval (label main (br label one) (label one ((rv = phi i32 [2 main] [rfour two]) ((ri = phi i32 [1 main] [rfive two]) ((rtwo = icmp slt i32 ri rd) (br i1 rtwo label two label three)))) (label two ((rfour = mul nsw i32 rv 2) ((rfive = add nsw i32 ri 1)(br label one))) (label three (ret i32 rv) empty)))) (empty rd 1) 2))
+(judgment-holds (eval (label main (br label one) (label one ((rv = phi i32 [1 main] [rfour two]) ((ri = phi i32 [1 main] [rfive two]) ((rtwo = icmp sle i32 ri rd) (br i1 rtwo label two label three)))) (label two ((rfour = mul nsw i32 rv 2) ((rfive = add nsw i32 ri 1)(br label one))) (label three (ret i32 rv) empty)))) (empty rd 1) 2))
