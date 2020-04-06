@@ -1,0 +1,200 @@
+#lang racket
+(require
+   "verilog_model.rkt"
+   "expression_evaluation.rkt"
+   "assignment_evaluation.rkt"
+   racket/match
+   redex/reduction-semantics)
+
+; Test metafunctions
+(term "Test useful metafunctions")
+(term (different (term 0) (term 1)))
+(not (term (different (term 0) (term 0))))
+(term (same (term 1) (term 1)))
+(not (term (same (term 1) (term 0))))
+(equal? (term (shift-left 3 0)) 3)
+(equal? (term (shift-left 3 2)) 12)
+(term (greater 1 0))
+(not (term (greater 1 9)))
+(term (lesser 0 1))
+(not (term (lesser 1 1)))
+(equal? (term (multiply 2 10)) 20)
+(not (equal? (term (multiply 2 10)) 1))
+(equal? (term (addi 2 10)) 12)
+(not (equal? (term (add 2 10)) 10))
+
+; Test lookups and sets of registers and wires
+(term "Test looking up and settings registers and wires")
+(judgment-holds (reg-lookup ((empty j 10) t 9) j 10)) ; Lookup-Reg-Last
+(judgment-holds (reg-lookup ((empty j 10) t 9) t 9)) ; Lookup-Reg-NotLast
+
+(judgment-holds (wire-lookup ((empty f X) g (reg-1 + 5)) f X))
+(judgment-holds (wire-lookup ((empty f 10) g (reg-1 + 5)) g (reg-1 + 5)))
+  
+(judgment-holds (reg-set (empty t 9) t 10 (empty t 10)))       ; Existing > (empty t 9) 
+(judgment-holds (reg-set ((empty t 9) j 10) t 10 ((empty t 10) j 10))) ; Inner > ((empty t 10) j 10)
+
+(judgment-holds (wire-set (empty wire-1 7) wire-1 (reg-i + 5) (empty wire-1 (reg-i + 5)))) 
+(judgment-holds (wire-set ((empty wire-1 7) wire-2 1) wire-1 (reg-1 + (4 + reg-2)) ((empty wire-1 (reg-1 + (4 + reg-2))) wire-2 1))) 
+(judgment-holds (wire-set ((empty wire-1 7) wire-2 X) wire-2 (reg-1 + (4 + reg-2)) ((empty wire-1 7) wire-2 (reg-1 + (4 + reg-2))))) 
+
+;; Test step
+(term "Test expression step")
+(judgment-holds (-->e empty empty (7 == 7) 1)) 
+(judgment-holds (-->e empty empty (X == 7) X)) 
+(judgment-holds (-->e empty empty (7 == X) X)) 
+(judgment-holds (-->e empty empty (X == X) X)) 
+(judgment-holds (-->e empty empty (7 == 2) 0)) 
+(judgment-holds (-->e empty empty (7 < 10) 1)) 
+(judgment-holds (-->e empty empty (X < 7) X)) 
+(judgment-holds (-->e empty empty (7 < X) X)) 
+(judgment-holds (-->e empty empty (X < X) X)) 
+(judgment-holds (-->e empty empty (7 < 7) 0)) 
+(judgment-holds (-->e empty empty (7 > 8) 0)) 
+(judgment-holds (-->e empty empty (X > 7) X)) 
+(judgment-holds (-->e empty empty (7 > X) X))
+(judgment-holds (-->e empty empty (X > X) X)) 
+(judgment-holds (-->e empty empty (7 > 2) 1))
+(judgment-holds (-->e empty empty (X * 7) X)) 
+(judgment-holds (-->e empty empty (7 * X) X)) 
+(judgment-holds (-->e empty empty (X * X) X)) 
+(judgment-holds (-->e empty empty (7 * 2) 14))
+(judgment-holds (-->e empty empty (7 * 0) 0))
+(judgment-holds (-->e empty empty (X + 7) X)) 
+(judgment-holds (-->e empty empty (7 + X) X)) 
+(judgment-holds (-->e empty empty (X + X) X)) 
+(judgment-holds (-->e empty empty (7 + 2) 9))
+(judgment-holds (-->e empty empty (7 + 0) 7))
+(judgment-holds (-->e empty empty (X - 7) X)) 
+(judgment-holds (-->e empty empty (7 - X) X)) 
+(judgment-holds (-->e empty empty (0 - 2) -2))
+(judgment-holds (-->e empty empty (7 - 2) 5))
+(judgment-holds (-->e empty empty (X <<< 7) X)) 
+(judgment-holds (-->e empty empty (7 <<< X) X)) 
+(judgment-holds (-->e empty empty (X <<< X) X)) 
+(judgment-holds (-->e empty empty (8 <<< 2) 32))
+(judgment-holds (-->e empty empty (7 <<< 0) 7))
+(judgment-holds (-->e empty empty (~ X) X)) 
+(judgment-holds (-->e empty empty (~ 0) 1))
+(judgment-holds (-->e empty empty (~ 7) 0))
+(judgment-holds (-->e empty empty (X && 7) X)) 
+(judgment-holds (-->e empty empty (7 && X) X)) 
+(judgment-holds (-->e empty empty (X && X) X))
+(judgment-holds (-->e empty empty (0 && X) 0))
+(judgment-holds (-->e empty empty (X && 0) 0)) 
+(judgment-holds (-->e empty empty (8 && 2) 1))
+(judgment-holds (-->e empty empty (1 && 0) 0))
+(judgment-holds (-->e empty empty (0 && 1) 0))
+(judgment-holds (-->e empty empty (X || 7) 1))
+(judgment-holds (-->e empty empty (5 || X) 1))  
+(judgment-holds (-->e empty empty (X || 0) X)) 
+(judgment-holds (-->e empty empty (X || X) X)) 
+(judgment-holds (-->e empty empty (0 || 1) 1))
+(judgment-holds (-->e empty empty (7 || 0) 1))
+(judgment-holds (-->e empty empty (7 || 1) 1))
+(judgment-holds (-->e empty empty (0 || 0) 0))
+(judgment-holds (-->e (empty f 5) empty f 5)) 
+(judgment-holds (-->e empty (empty f (reg-i + 3)) f (reg-i + 3))) 
+
+;; Test continuation
+(term "Test expression continuation")
+(judgment-holds (-->+ empty empty (7 == 1) 0))
+(judgment-holds (-->+ empty empty (0 == 0) 1))
+(judgment-holds (-->+ empty empty (0 == (1 == 1)) (0 == 1)))
+(judgment-holds (-->+ empty empty (0 == (1 == 7)) (0 == 0)))
+(judgment-holds (-->+ empty empty (0 < (1 < 2)) (0 < 1)))
+(judgment-holds (-->+ empty empty (0 < (1 < 0)) (0 < 0)))
+(judgment-holds (-->+ empty empty (1 > (1 > 0)) (1 > 1)))
+(judgment-holds (-->+ empty empty (1 > (1 > 7)) (1 > 0)))
+(judgment-holds (-->+ empty empty (0 * (1 * 7)) (0 * 7)))
+(judgment-holds (-->+ empty empty (2 * (1 * 2)) (2 * 2)))
+(judgment-holds (-->+ empty empty (9 - (5 - 1)) (9 - 4)))
+(judgment-holds (-->+ empty empty (3 - (2 - 4)) (3 - -2)))
+(judgment-holds (-->+ empty empty (0 + (1 + 2)) (0 + 3)))
+(judgment-holds (-->+ empty empty (1 + (2 + 4)) (1 + 6)))
+(judgment-holds (-->+ empty empty (5 <<< (1 <<< 1)) (5 <<< 2)))
+(judgment-holds (-->+ empty empty (1 <<< (3 <<< 0)) (1 <<< 3)))
+(judgment-holds (-->+ empty empty (~ (~ 7)) (~ 0)))
+(judgment-holds (-->+ empty empty (9 && (1 && 0)) (9 && 0)))
+(judgment-holds (-->+ empty empty (1 && (1 && 7)) (1 && 1)))
+;(test-judgment-holds -->+
+;    (derivation
+;      '(-->+ empty empty (0 == (1 == 1)) (0 == 1))
+;      "Cont-Eq-2"
+;      (list
+;    (derivation
+;      '(-->+ empty empty (1 == 1) 1)
+;      "Step"
+;      (list
+;          (derivation
+;          '(--> empty empty (1 == 1) 1)
+;          "Step-Eq"
+;          (list
+;           ))))
+;       ))
+;    )
+
+;; Test conversion
+(term "Test expression conversion")
+(judgment-holds (-->* empty empty (7 == 1) (7 == 1)))
+(judgment-holds (-->* empty empty (7 == 1) 0))
+(judgment-holds (-->* empty empty (0 == 0) 1))
+(judgment-holds (-->* empty empty (0 == (1 == 1)) 0))
+(judgment-holds (-->* empty empty (0 == (1 == 7)) 1))
+(judgment-holds (-->* empty empty ((1 < 0) < (1 < 2)) 1))
+(judgment-holds (-->* empty empty (0 < (1 < 0)) 0))
+(judgment-holds (-->* empty empty ((1 > 0) > (1 > 0)) 0))
+(judgment-holds (-->* empty empty (1 > (1 > 7)) 1))
+(judgment-holds (-->* empty empty ((0 * 8) * (1 * 7)) 0))
+(judgment-holds (-->* empty empty (2 * (1 * 2)) 4))
+(judgment-holds (-->* empty empty ((8 + 1) - (5 - 1)) 5))
+(judgment-holds (-->* empty empty (3 - (2 - 4)) 5))
+(judgment-holds (-->* empty empty (0 + (1 + 2)) 3))
+(judgment-holds (-->* empty empty (1 + (2 + 4)) 7))
+(judgment-holds (-->* empty empty (((1 <<< 1) + 3) <<< (1 <<< 1)) 20))
+(judgment-holds (-->* empty empty (1 <<< (3 <<< 0)) 8))
+(judgment-holds (-->* empty empty (~ (~ 7)) 1))
+(judgment-holds (-->* empty empty (9 && (1 && 0)) 0))
+(judgment-holds (-->* empty empty (1 && (1 && 7)) 1))
+(judgment-holds (-->* (empty reg-i 7) empty (1 && (1 && reg-i)) 1))
+(judgment-holds (-->* empty (empty wire-i 0) (1 && (1 && wire-i)) 0))
+(judgment-holds (-->* empty (empty wire-i (1 + 4)) (1 + (2 * wire-i)) 11))
+(judgment-holds (-->* empty ((empty wire-i2 (6 - 2)) wire-i (1 + wire-i2)) (1 + (2 * wire-i)) 11))
+
+; Test evaluation of expression
+(term "Test expression evaluation")
+(judgment-holds (eval-e empty empty (7 == 1) 0))
+(judgment-holds (eval-e empty empty (0 == 0) 1))
+(judgment-holds (eval-e empty empty (0 == (1 == 1)) 0))
+(judgment-holds (eval-e empty empty (0 == (1 == 7)) 1))
+(judgment-holds (eval-e empty empty ((1 < 0) < (1 < 2)) 1))
+(judgment-holds (eval-e empty empty (0 < (1 < 0)) 0))
+(judgment-holds (eval-e empty empty ((1 > 0) > (1 > 0)) 0))
+(judgment-holds (eval-e empty empty (1 > (1 > 7)) 1))
+(judgment-holds (eval-e empty empty ((0 * 8) * (1 * 7)) 0))
+(judgment-holds (eval-e empty empty (2 * (1 * 2)) 4))
+(judgment-holds (eval-e empty empty ((8 + 1) - (5 - 1)) 5))
+(judgment-holds (eval-e empty empty (3 - (2 - 4)) 5))
+(judgment-holds (eval-e empty empty (0 + (1 + 2)) 3))
+(judgment-holds (eval-e empty empty (1 + (2 + 4)) 7))
+(judgment-holds (eval-e empty empty (((1 <<< 1) + 3) <<< (1 <<< 1)) 20))
+(judgment-holds (eval-e empty empty (1 <<< (3 <<< 0)) 8))
+(judgment-holds (eval-e empty empty (~ (~ 7)) 1))
+(judgment-holds (eval-e empty empty (9 && (1 && 0)) 0))
+(judgment-holds (eval-e empty empty (1 && (1 && 7)) 1))
+(judgment-holds (eval-e (empty reg-i 7) empty (1 && (1 && reg-i)) 1))
+(judgment-holds (eval-e empty (empty wire-i 0) (1 && (1 && wire-i)) 0))
+(judgment-holds (eval-e empty (empty wire-i (1 + 4)) (1 + (2 * wire-i)) 11))
+(judgment-holds (eval-e empty ((empty wire-i2 (6 - 2)) wire-i (1 + wire-i2)) (1 + (2 * wire-i)) 11))
+
+
+; Test doing one blocking instruction
+(term "Test blocking instructions")
+(judgment-holds (-->b (empty reg-i 7) ((empty wire-2 (reg-i + 1)) wire-i 7) ((wire-2 = 5) (end end)) ((empty wire-2 5) wire-i 7) (end end)))
+(judgment-holds (-->b (empty reg-i 7) ((empty wire-2 (reg-i + 1)) wire-i 7) ((wire-2 = 5) ((wire-2 = (reg-i + 3)) end)) ((empty wire-2 5) wire-i 7) ((wire-2 = (reg-i + 3)) end)))
+(judgment-holds (-->b (empty reg-i 7) ((empty wire-2 5) wire-i 7) ((wire-i = (reg-i + wire-2)) end) ((empty wire-2 5) wire-i (reg-i + wire-2)) end))
+
+; Test doing one non-blocking instructions
+(term "Test non-blocking instructions")
+(judgment-holds (-->nb (empty reg-i 7) (empty reg-i 2) (empty wire-2 (reg-i + 1)) ((reg-i <= (wire-2 + 2)) end) (empty reg-i 10) end))
+
