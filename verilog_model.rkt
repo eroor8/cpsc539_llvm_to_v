@@ -13,16 +13,14 @@
 (provide
  MyVerilog
  different same greater lesser multiply addi subi shift-left
- reg-lookup wire-lookup reg-set wire-set)
+ reg-lookup wire-lookup reg-set wire-set case-lookup)
 
 (define-language MyVerilog
   ; A program is 'module main beginmodule
-  ;                  <initializations>
   ;                  <comb block>
   ;                  <sync block>
   ;               endmodule'
   ; Limitation: only one block of each type
-  [P ::= module main beginmodule inits comb-logic sync-logic endmodule]
   [io-type ::= input output none]                ; used in declarations
   [rw-type ::= reg wire]                         ; reg or wire
   [index-decl ::= none [integer : integer]]      ; used to specify bit width
@@ -31,7 +29,7 @@
   [wire-i ::= variable-not-otherwise-mentioned]  ; reg index
   [rw-i ::= reg-i wire-i]                        ; a register or wire index
   [R ::= empty                                   ; Registers
-         (R reg-i integer)]
+         (R reg-i a)]
   [W ::= empty                                   ; Wires
      (W wire-i e)]
   [state ::= a]
@@ -47,18 +45,19 @@
          (e - e)
          (~ e)
          (e <<< e)
+         (e ? e : e)
          reg-i
          wire-i
          a
-  ]
-  [case-list-b ::= a l-blocking]      ; case statement option
-  [case-list-nb ::= a l-nonblocking]
+         ]
+  [l ::= l-blocking l-nonblocking]
+  [case-list ::= empty (case-list a l)]      ; case statement option
 
   ; Combinational and synchronous logic blocks must contain blocking and
   ; non blocking assignments respectively.
   ; They need to be structured as case statements. 
-  [comb-logic-block ::= always@(*) begin case (e) case-list-b endcase end]
-  [sync-logic-block ::= always@(posedge clk) begin case (e) case-list-nb endcase end]
+  [comb-logic-block ::= (always-comb begincase reg-i case-list endcase)]
+  [sync-logic-block ::= (always-sync begincase reg-i case-list endcase)]
 
   [l-blocking ::=
      ;(if e begin l-blocking else begin l-blocking)
@@ -74,11 +73,6 @@
      (l-nonblocking l-nonblocking)
      end
   ]
-  ; Initializations specify IOtype, logic type, bit width and name.
-  [init ::= (io-type rw-type index-decl rw-i)]
-  ; List of initializations.
-  ; Should always include clk, result, start, finish
-  [inits ::= (inits init)]     ; list of initializations
   )
 
 ; Define metafunctions to do comparisons, computations
@@ -140,6 +134,21 @@
    (wire-lookup (W wire-i_1 e_1) wire-i_2 e_2)]
   )
 
+; Lookup reg-i index to find corresponding value
+(define-judgment-form MyVerilog
+  #:contract (case-lookup R case-list reg-i l)
+  #:mode     (case-lookup I I         I     O)
+  ; Matching key is last pair
+  [(reg-lookup R reg-i a)
+   -----
+   (case-lookup R (case-list a l) reg-i l)]
+  ; Matching key is not last pair
+  [(case-lookup R case-list reg-i l_2)
+   -----
+   (case-lookup R (case-list a l) reg-i l_2)]
+)
+
+
 ; Set register reg-i to value a in new register file
 (define-judgment-form  MyVerilog
   #:contract (reg-set R reg-i a R)
@@ -173,6 +182,3 @@
    (wire-set (W wire-i e) wire-i_2 e_2 (W_2 wire-i e))]
 )
 
-; Next steps
-; Steps and evaluation for going through sync and comb logic 
-; Many clock cycles

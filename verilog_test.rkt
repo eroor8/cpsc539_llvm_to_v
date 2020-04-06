@@ -38,8 +38,15 @@
 (judgment-holds (wire-set ((empty wire-1 7) wire-2 1) wire-1 (reg-1 + (4 + reg-2)) ((empty wire-1 (reg-1 + (4 + reg-2))) wire-2 1))) 
 (judgment-holds (wire-set ((empty wire-1 7) wire-2 X) wire-2 (reg-1 + (4 + reg-2)) ((empty wire-1 7) wire-2 (reg-1 + (4 + reg-2))))) 
 
+(judgment-holds (case-lookup
+                ((empty f 10) g 5)
+                ((empty 10 end) 5 (end end))
+                g
+                (end end)
+                ))
+
 ;; Test step
-(term "Test expression step")
+(term "Test expression reduction")
 (judgment-holds (-->e empty empty (7 == 7) 1)) 
 (judgment-holds (-->e empty empty (X == 7) X)) 
 (judgment-holds (-->e empty empty (7 == X) X)) 
@@ -93,6 +100,9 @@
 (judgment-holds (-->e empty empty (7 || 0) 1))
 (judgment-holds (-->e empty empty (7 || 1) 1))
 (judgment-holds (-->e empty empty (0 || 0) 0))
+ 
+(judgment-holds (-->e empty empty (0 ? 2 : 3) 3))
+(judgment-holds (-->e empty empty (1 ? 2 : 3) 2))
 (judgment-holds (-->e (empty f 5) empty f 5)) 
 (judgment-holds (-->e empty (empty f (reg-i + 3)) f (reg-i + 3))) 
 
@@ -117,22 +127,7 @@
 (judgment-holds (-->+ empty empty (~ (~ 7)) (~ 0)))
 (judgment-holds (-->+ empty empty (9 && (1 && 0)) (9 && 0)))
 (judgment-holds (-->+ empty empty (1 && (1 && 7)) (1 && 1)))
-;(test-judgment-holds -->+
-;    (derivation
-;      '(-->+ empty empty (0 == (1 == 1)) (0 == 1))
-;      "Cont-Eq-2"
-;      (list
-;    (derivation
-;      '(-->+ empty empty (1 == 1) 1)
-;      "Step"
-;      (list
-;          (derivation
-;          '(--> empty empty (1 == 1) 1)
-;          "Step-Eq"
-;          (list
-;           ))))
-;       ))
-;    )
+(judgment-holds (-->+ empty empty ((3 == 2) ? 2 : 3) (0 ? 2 : 3)))
 
 ;; Test conversion
 (term "Test expression conversion")
@@ -160,6 +155,8 @@
 (judgment-holds (-->* empty (empty wire-i 0) (1 && (1 && wire-i)) 0))
 (judgment-holds (-->* empty (empty wire-i (1 + 4)) (1 + (2 * wire-i)) 11))
 (judgment-holds (-->* empty ((empty wire-i2 (6 - 2)) wire-i (1 + wire-i2)) (1 + (2 * wire-i)) 11))
+(judgment-holds (-->* empty empty ((3 == 2) ? 4 : 2) 2))
+(judgment-holds (-->* empty empty ((2 == 2) ? 4 : 2) 4))
 
 ; Test evaluation of expression
 (term "Test expression evaluation")
@@ -186,15 +183,289 @@
 (judgment-holds (eval-e empty (empty wire-i 0) (1 && (1 && wire-i)) 0))
 (judgment-holds (eval-e empty (empty wire-i (1 + 4)) (1 + (2 * wire-i)) 11))
 (judgment-holds (eval-e empty ((empty wire-i2 (6 - 2)) wire-i (1 + wire-i2)) (1 + (2 * wire-i)) 11))
+(judgment-holds (eval-e (empty reg-i 1) empty ((2 == reg-i) ? 4 : 2) 2))
+(judgment-holds (eval-e (empty reg-i 2) empty ((2 == reg-i) ? 4 : 2) 4))
 
 
 ; Test doing one blocking instruction
-(term "Test blocking instructions")
+(term "Test blocking assignment")
 (judgment-holds (-->b (empty reg-i 7) ((empty wire-2 (reg-i + 1)) wire-i 7) ((wire-2 = 5) (end end)) ((empty wire-2 5) wire-i 7) (end end)))
 (judgment-holds (-->b (empty reg-i 7) ((empty wire-2 (reg-i + 1)) wire-i 7) ((wire-2 = 5) ((wire-2 = (reg-i + 3)) end)) ((empty wire-2 5) wire-i 7) ((wire-2 = (reg-i + 3)) end)))
 (judgment-holds (-->b (empty reg-i 7) ((empty wire-2 5) wire-i 7) ((wire-i = (reg-i + wire-2)) end) ((empty wire-2 5) wire-i (reg-i + wire-2)) end))
 
 ; Test doing one non-blocking instructions
-(term "Test non-blocking instructions")
+(term "Test non-blocking assignment")
 (judgment-holds (-->nb (empty reg-i 7) (empty reg-i 2) (empty wire-2 (reg-i + 1)) ((reg-i <= (wire-2 + 2)) end) (empty reg-i 10) end))
+
+; Test evaluating a set of blocking assingments
+(term "Test a set of blocking assignments")
+(judgment-holds (eval-b (empty reg-i 7) (empty wire-i 7) end (empty wire-i 7)))
+(judgment-holds (eval-b (empty reg-i 7) ((empty wire-2 (reg-i + 1)) wire-i 7) ((wire-2 = 5) ((wire-i = (reg-i + 3)) end)) ((empty wire-2 5) wire-i (reg-i + 3))))
+(judgment-holds (eval-b (empty reg-i 7) ((empty wire-2 (reg-i + 1)) wire-i 7) ((wire-2 = 5) ((wire-i = (reg-i + 3)) end)) ((empty wire-2 5) wire-i (reg-i + 3))))
+
+; Test evaluating a set of nonblocking assingments
+(term "Test a set of nonblocking assignments")
+(judgment-holds (eval-nb
+                 (empty reg-i X)
+                 (empty reg-i 1)
+                 (empty wire-i 7)
+                 end
+                 (empty reg-i 1)))
+(judgment-holds (eval-nb
+                 ((empty reg-i 3) reg-t 1)
+                 ((empty reg-i 3) reg-t 1)
+                 ((empty wire-i (reg-i * 2)) wire-t ((7 - 2) * reg-t))
+                 ((reg-t <= (wire-t + reg-t)) ((reg-i <= (wire-i + reg-t)) end))
+                 ((empty reg-i 7) reg-t 6)
+                 ))
+
+;; Evaluate full always block
+(term "Test a combinational always block")
+(judgment-holds (eval-always-comb
+                 (empty reg-i 3)
+                 (empty wire-i 1) ; W
+                 (always-comb begincase reg-i 
+                    (empty 3 end)
+                     endcase)
+                 (empty wire-i 1)
+                 ))
+
+(judgment-holds (eval-always-comb
+                 ((empty reg-i 3) reg-m 2) ; R
+                 ((empty wire-2 (reg-i + 1)) wire-i 7) ; W
+                 
+                 (always-comb begincase reg-m 
+                              ((empty
+                               2
+                                  ((wire-2 = 5) (
+                                  (wire-i = (reg-i + 3))
+                                  end)))
+                               3
+                                  ((wire-2 = 1) (
+                                  (wire-i = 1)
+                                  end))
+                              )
+                     endcase)
+                 ((empty wire-2 5) wire-i (reg-i + 3))
+                 ))
+
+(term "Test a synchronous always block")
+(judgment-holds (eval-always-sync
+                 (empty reg-i 3)
+                 (empty wire-i 1) ; W
+                 (always-sync begincase reg-i 
+                    (empty 3 end)
+                     endcase)
+                 (empty reg-i 3)
+                 ))
+
+(judgment-holds (eval-always-sync
+                 ((empty reg-i 3) reg-m 2) ; R
+                 ((empty wire-2 (reg-i + 1)) wire-i (reg-i + 2)) ; W
+                 
+                 (always-sync begincase reg-i
+                              ((empty
+                               2
+                                  ((reg-i <= 5) (
+                                  (reg-m <= (reg-i + 1))
+                                  end)))
+                               3
+                                  ((reg-i <= (wire-i * 3)) (
+                                  (reg-m <= 1)
+                                  end))
+                              )
+                     endcase)
+                 ((empty reg-i 15) reg-m 1)
+                 ))
+
+(term "Run start to finish!")
+(judgment-holds (cycle
+                 ((empty reg-i 0) reg-m 0) ; R
+                 ((empty wire-i 0) wire-m 0) ; W
+                 (always-sync begincase reg-i ;(empty 0 end)
+                              ((empty
+                               0
+                                  ((reg-i <= 1) (
+                                  (reg-m <= 1)
+                                  end)))
+                               3
+                                  ((reg-i <= 2) (
+                                  (reg-m <= 2)
+                                  end))
+                              )
+                     endcase)                 
+                 (always-comb begincase reg-i ;(empty 0 end)
+                              ((empty
+                               0
+                                  ((wire-m = 3) (
+                                  (wire-i = 3)
+                                  end)))
+                               3
+                                  ((wire-m = 4) (
+                                  (wire-i = 4)
+                                  end))
+                              )
+                     endcase)
+                 ((empty reg-i 1) reg-m 1)
+                 ((empty wire-i 3) wire-m 3) ; W
+                 ))
+
+(judgment-holds (cycle
+                 ((empty state-reg 0) result-reg 0) ; R
+                 (((empty finished 0) start 1) input-wire 4) ; W
+                 (always-sync begincase state-reg ;(empty 0 end)
+                              ((empty
+                               0
+                                  ((result-reg <= (input-wire * 2)) (
+                                  (state-reg <= 100)
+                                  end)))
+                               100
+                                  ((result-reg <= (result-reg + 3)) (
+                                  (state-reg <= 100)
+                                  end))
+                              )
+                     endcase)                 
+                 (always-comb begincase state-reg ;(empty 0 end)
+                              ((empty
+                               0
+                                  ((finished = 0)
+                                  end))
+                               100
+                                  ((finished = 1)
+                                  end)
+                              )
+                     endcase)
+                 ((empty state-reg 100) result-reg 8)                
+                 (((empty finished 0) start 1) input-wire 4) ; W
+                 ))
+
+(judgment-holds (cycle
+                 ((empty state-reg 100) result-reg 8)                
+                 (((empty input-wire 4) start 1) finished 0) ; W
+                 (always-sync begincase state-reg ;(empty 0 end)
+                              ((empty
+                               0
+                                  ((result-reg <= (input-wire * 2)) (
+                                  (state-reg <= 100)
+                                  end)))
+                               100
+                                  ((result-reg <= (result-reg + 3)) (
+                                  (state-reg <= 100)
+                                  end))
+                              )
+                     endcase)                 
+                 (always-comb begincase state-reg ;(empty 0 end)
+                              ((empty
+                               0
+                                  ((finished = 0)
+                                  end))
+                               100
+                                  ((finished = 1)
+                                  end)
+                              )
+                     endcase)
+                 ((empty state-reg 100) result-reg 24)                
+                 (((empty input-wire 4) start 1) finished 1) ; W
+                 ))
+
+(term "Run full program")
+(judgment-holds (run-v
+                 ((empty state-reg 0) result-reg 0) ; R
+                 (((empty input-wire 4) start 1) finished 0) ; W
+                 (always-sync begincase state-reg ;(empty 0 end)
+                              ((empty
+                               0
+                                  ((result-reg <= (input-wire * 2)) (
+                                  (state-reg <= 100)
+                                  end)))
+                               100
+                                  ((result-reg <= result-reg) (
+                                  (state-reg <= 100)
+                                  end))
+                              )
+                     endcase)                 
+                 (always-comb begincase state-reg ;(empty 0 end)
+                              ((empty
+                               0
+                                  ((finished = 0)
+                                  end))
+                               100
+                                  ((finished = 1)
+                                  end)
+                              )
+                     endcase)
+                 8 ))
+
+(judgment-holds (run-v
+                 ((empty state-reg 100) result-reg 8)                
+                 (((empty input-wire 4) start 1) finished 0)
+                 (always-sync begincase state-reg
+                              ((empty
+                               0
+                                  ((result-reg <= (input-wire * 2)) (
+                                  (state-reg <= 100)
+                                  end)))
+                               100
+                                  ((result-reg <= result-reg) (
+                                  (state-reg <= 100)
+                                  end))
+                              )
+                     endcase)                 
+                 (always-comb begincase state-reg
+                              ((empty
+                               0
+                                  ((finished = 0)
+                                  end))
+                               100
+                                  ((finished = 1)
+                                  end)
+                              )
+                     endcase)
+                 8 ))
+
+(judgment-holds (run-v
+                 (((empty reg-i X) state-reg 0) result-reg X) ; R
+                 (((empty input-wire 4) start 1) finished X) ; W
+                 (always-sync begincase state-reg ;(empty 0 end)
+                              ((((empty
+                               0
+                                  ((result-reg <= 1) (
+                                  (reg-i <= 0) (
+                                  (state-reg <= 1)
+                                  end))))
+                               1
+                                  ((result-reg <= result-reg) (
+                                  (reg-i <= reg-i) (
+                                  (state-reg <= ((reg-i < input-wire) ? 2 : 100))
+                                  end))))
+                               2
+                                  ((result-reg <= (result-reg * 2)) (
+                                  (state-reg <= 1) (
+                                  (reg-i <= (reg-i + 1))
+                                  end))))
+                               100
+                                  ((result-reg <= result-reg) (
+                                  (state-reg <= 100)
+                                  end))
+                              )
+                     endcase)                 
+                 (always-comb begincase state-reg ;(empty 0 end)
+                              ((((empty
+                               0
+                                  ((finished = 0)
+                                  end))
+                               1
+                                  ((finished = 0)
+                                  end))
+                               2
+                                  ((finished = 0)
+                                  end))
+                               100
+                                  ((finished = 1)
+                                  end)
+                              )
+                     endcase)
+                 a ) a)
+
+(term "Done all tests")
 

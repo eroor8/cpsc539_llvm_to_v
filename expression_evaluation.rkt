@@ -6,17 +6,22 @@
 
 (provide -->e -->+ -->* eval-e)
 
+;;  Expressions are evaluated as describted in class:
+;;    - Reduction (-->)
+;;    - Conversion (-->+)
+;;    - Inductive Conversion (-->*)
+;;    - Evaluation (eval)
 
-; Step expression - same as for a functional language!
+; Reduction of expression - same as for a functional language!
 (define-judgment-form  MyVerilog
   #:contract (-->e R W e e)
   #:mode (-->e I I I O)
   ;; equality
   [(where #t (same integer_1 integer))
-   ----- "Step-Eq"
+   -----
    (-->e R W (integer_1 == integer) 1)]
   [(where #f (same integer_1 integer))
-   ----- "Step-Neq"
+   -----
    (-->e R W (integer_1 == integer) 0)]
   [-----
    (-->e R W (a == X) X)]
@@ -132,6 +137,16 @@
   [----
    (-->e R W (X || X) X)]
   
+  ; (e ? e else e)
+  [(where #t (different integer 0))
+   -----
+   (-->e R W (integer ? e : e_1) e)]
+  [(where #f (different integer 0))
+   -----
+   (-->e R W (integer ? e : e_1) e_1)]
+  [-----
+   (-->e R W (X ? e : e_1) X)]
+  
   ; register and wire references
   [(reg-lookup R reg-i a)
    -----
@@ -215,7 +230,16 @@
   [(-->+ R W e_1 e_11)
    -----
    (-->+ R W (e_1 || e) (e_11 || e))]
-  
+   ; ?
+  [(-->+ R W e e_11)  
+   -----
+   (-->+ R W (e ? e_1 : e_2) (e_11 ? e_1 : e_2))]
+  [(-->+ R W e_1 e_11)
+   -----
+   (-->+ R W (e ? e_1 : e_2) (e ? e_11 : e_2))]
+  [(-->+ R W e_2 e_11)
+   -----
+   (-->+ R W (e ? e_1 : e_2) (e ? e_11 : e_11))]  
   ;[(-->+ R W e e_1)
   ; (--> R W e_1 e_2)
   ; -----
