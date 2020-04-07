@@ -5,15 +5,11 @@
 ;      of initializations
 ;   assume only blocking assignments in comb blocks,
 ;      only nonblocking assignments in sync. blocks
-
 (require
    racket/match
    redex/reduction-semantics)
 
-(provide
- MyVerilog
- different same greater lesser multiply addi subi shift-left
- reg-lookup wire-lookup reg-set wire-set case-lookup)
+(provide (all-defined-out))
 
 (define-language MyVerilog
   ; A program is 'module main beginmodule
@@ -75,10 +71,7 @@
   ]
   )
 
-; Define metafunctions to do comparisons, computations
-;(define-metafunction MyVerilog
-;  shift-left : any any -> any
-;  [(shift-left any_1 any_2) ,(* (2 (shift-left any_1 (- any_2 1))))])
+
 (define-metafunction MyVerilog
   same : any any -> any
   [(same any_1 any_2) ,(equal? (term any_1) (term any_2))])
@@ -91,12 +84,12 @@
 (define-metafunction MyVerilog    ; define less than
   lesser : any any -> any
   [(lesser any_1 any_2) ,(< (term any_1) (term any_2))])
-(define-metafunction MyVerilog   ; define multiplication
-  multiply : any any -> any
-  [(multiply any_1 any_2) , (* (term any_1) (term any_2))])
-(define-metafunction MyVerilog    ; define addition
+(define-metafunction MyVerilog    ; define subtraction
   addi : any any -> any
-  [(addi any_1 any_2) , (+ (term any_1) (term any_2))])
+  [(addi any any_1) , (+ (term any) (term any_1))])
+(define-metafunction MyVerilog    ; define subtraction
+  multiply : any any -> any
+  [(multiply any any_1) , (* (term any) (term any_1))])
 (define-metafunction MyVerilog    ; define subtraction
   subi : any any -> any
   [(subi any any_1) , (+ (term any) (- (term any_1)))])
@@ -107,6 +100,8 @@
      (side-condition (< (term any_2) (term 1)))]
     [(shift-left any_1 any_2)
      (multiply 2 (shift-left any_1 (addi any_2 -1)))])
+
+
 
 ; Lookup reg-i index to find corresponding value
 (define-judgment-form MyVerilog

@@ -5,7 +5,7 @@
    racket/match
    redex/reduction-semantics)
 
-(provide -->b -->nb eval-b eval-nb eval-always-comb eval-always-sync cycle run-v)
+(provide (all-defined-out))
 
 ;;  Assignments are evaluated more like assembly load/store instructions
 ;;    - --> steps through a single instruction

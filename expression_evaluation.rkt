@@ -1,6 +1,6 @@
 #lang racket
 (require
-   "verilog_model.rkt"
+ "verilog_model.rkt"
    racket/match
    redex/reduction-semantics)
 
