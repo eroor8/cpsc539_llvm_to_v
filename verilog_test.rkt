@@ -338,7 +338,8 @@
 (judgment-holds (run-v
                  (((empty finished 0) state-reg zero) result-reg 0) ; R
                  ((empty input-wire 4) start 1) ; W
-                 (always-sync begincase state-reg ;(empty 0 end)
+                 (mod (always-comb begincase state-reg empty endcase)
+                      (always-sync begincase state-reg ;(empty 0 end)
                               ((empty
                                zero
                                   ((result-reg <= (input-wire * 2)) (
@@ -350,13 +351,17 @@
                                   ((finished <= 1)
                                   end)))
                               )
-                     endcase)                 
-                 (always-comb begincase state-reg empty endcase)
+                              endcase)
+                      endmodule)
                  8 ))
 
 (judgment-holds (run-v
                  (((empty finished 0) state-reg donest) result-reg 8)    
                  ((empty input-wire 4) start 1)
+                 (mod                  
+                 (always-comb begincase state-reg
+                              empty
+                              endcase)
                  (always-sync begincase state-reg
                               ((empty
                                0
@@ -369,15 +374,30 @@
                                   ((finished <= 1)
                                   end)))
                               )
-                     endcase)                 
-                 (always-comb begincase state-reg
-                              empty
-                     endcase)
+                              endcase)
+                 endmodule)
                  8 ))
 
 (judgment-holds (run-v
                  ((((empty finished 0) reg-i X) state-reg zero) result-reg X) ; R
                  (((empty input-wire 4) start 1) finishedw 0) ; W
+                 (mod                 
+                 (always-comb begincase state-reg ;(empty 0 end)
+                              ((((empty
+                               zero
+                                  ((finishedw = 0)
+                                  end))
+                               four
+                                  ((finishedw = 0)
+                                  end))
+                               two
+                                  ((finishedw = 0)
+                                  end))
+                               three
+                                  ((finishedw = 1)
+                                  end)
+                              )
+                              endcase)
                  (always-sync begincase state-reg ;(empty 0 end)
                               ((((empty
                                zero
@@ -401,30 +421,17 @@
                                   ((finished <= finishedw)
                                   end)))
                               )
-                     endcase)                 
-                 (always-comb begincase state-reg ;(empty 0 end)
-                              ((((empty
-                               zero
-                                  ((finishedw = 0)
-                                  end))
-                               four
-                                  ((finishedw = 0)
-                                  end))
-                               two
-                                  ((finishedw = 0)
-                                  end))
-                               three
-                                  ((finishedw = 1)
-                                  end)
-                              )
-                     endcase)
+                              endcase)
+                 endmodule)
                  a ) a)
 
 
 (judgment-holds (run-v
                  ((((empty finished 0) reg-i X) state-reg 0) result-reg X) ; R
                  ((empty input-wire 4) start 1) ; W
-                 (always-sync begincase state-reg ;(empty 0 end)
+                 (mod                  
+                  (always-comb begincase state-reg empty endcase)
+                  (always-sync begincase state-reg ;(empty 0 end)
                               ((((empty
                                0
                                   ((result-reg <= 1) (
@@ -447,8 +454,8 @@
                                   ((finished <= 1)
                                   end)))
                               )
-                     endcase)                 
-                 (always-comb begincase state-reg empty endcase)
+                              endcase)
+                  endmodule)
                  a ) a)
 
 

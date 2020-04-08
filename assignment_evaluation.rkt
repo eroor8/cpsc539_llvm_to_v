@@ -98,30 +98,30 @@
 )
 
 (define-judgment-form  MyVerilog
-  #:contract (run-v R W sync-logic-block comb-logic-block a)
-  #:mode     (run-v I I I                I                O)
+  #:contract (run-v R W p a)
+  #:mode     (run-v I I I O)
   [(reg-lookup R finished X)
    (cycle R W sync-logic-block comb-logic-block R_1 W_1)
-   (run-v R_1 W_1 sync-logic-block comb-logic-block a)
+   (run-v R_1 W_1 (mod comb-logic-block sync-logic-block endmodule) a)
    ----- 
    (run-v
     R
     W
-    sync-logic-block comb-logic-block a)]
+    (mod comb-logic-block sync-logic-block endmodule) a)]
   [(reg-lookup R finished 0)
    (cycle R W sync-logic-block comb-logic-block R_1 W_1)
-   (run-v R_1 W_1 sync-logic-block comb-logic-block a)
+   (run-v R_1 W_1 (mod comb-logic-block sync-logic-block endmodule) a)
    ----- 
    (run-v
     R
     W
-    sync-logic-block comb-logic-block a)]
+    (mod comb-logic-block sync-logic-block endmodule) a)]
   [(reg-lookup R finished 1)
    (reg-lookup R result-reg a)
    ----- 
    (run-v
     R W
-    sync-logic-block comb-logic-block a)]
+    (mod comb-logic-block sync-logic-block endmodule) a)]
 )
 
 

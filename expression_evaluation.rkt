@@ -17,6 +17,15 @@
   #:contract (-->e R W e e)
   #:mode (-->e I I I O)
   ;; equality
+  [(where #t (same reg-i_1 reg-i))
+   (reg-lookup R reg-i X)
+   -----
+   (-->e R W (reg-i_1 == reg-i) 1)]
+  [(where #f (same reg-i_1 reg-i))
+   (reg-lookup R reg-i X)
+   -----
+   (-->e R W (reg-i_1 == reg-i) 0)]
+  
   [(where #t (same integer_1 integer))
    -----
    (-->e R W (integer_1 == integer) 1)]
@@ -239,7 +248,7 @@
    (-->+ R W (e ? e_1 : e_2) (e ? e_11 : e_2))]
   [(-->+ R W e_2 e_11)
    -----
-   (-->+ R W (e ? e_1 : e_2) (e ? e_11 : e_11))]  
+   (-->+ R W (e ? e_1 : e_2) (e ? e_1 : e_11))]  
   ;[(-->+ R W e e_1)
   ; (--> R W e_1 e_2)
   ; -----

@@ -11,7 +11,7 @@
   ; Update labels.
   ; Assume no collisions here...
   [(label-list-lookup lbl-list lbl-i lbl-i_2)
-   (where #t (different lbl-i_2 X))
+   (where #t (differentl lbl-i_2 X))
    (replace-phis l lbl-list l_2)
    (label-list-lookup lbl-list lbl-i_1 X)
    -----
@@ -24,8 +24,8 @@
   [(replace-phis l lbl-list l_2)
    (label-list-lookup lbl-list lbl-i_1 lbl-i_2)
    (label-list-lookup lbl-list lbl-i lbl-i_3)
-   (where #t (different lbl-i_2 X))
-   (where #t (different lbl-i_3 X))
+   (where #t (differentl lbl-i_2 X))
+   (where #t (differentl lbl-i_3 X))
    -----
    (replace-phis
       ((reg-i = phi t [a-or-r lbl-i] [a-or-r_1 lbl-i_1]) l)
@@ -36,7 +36,7 @@
   [(replace-phis l lbl-list l_2)
    (label-list-lookup lbl-list lbl-i_1 lbl-i_2)
    (label-list-lookup lbl-list lbl-i X)
-   (where #t (different lbl-i_2 X))
+   (where #t (differentl lbl-i_2 X))
    -----
    (replace-phis
       ((reg-i = phi t [a-or-r lbl-i] [a-or-r_1 lbl-i_1]) l)
@@ -105,7 +105,7 @@
               (label lbl-i l-br p_2)
               lbl-list
    )
-   ]
+  ]
   [(-->pass1a (addil integer_0 1) (label integer_0 l_2 p_1) p_2 lbl-list)
    (label-list-lookup lbl-list integer_0 X)
    -----

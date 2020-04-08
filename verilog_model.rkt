@@ -32,7 +32,7 @@
   [e ::= (e == e)
          (e < e)
          (e > e)
-         (e > e)
+         (e > e)p
          (e * e)
          (e || e)
          (e && e)
@@ -161,6 +161,7 @@
    ----- "Set-Reg-Existing-Inner"
    (reg-set (R reg-i any) reg-i_2 any_2 (R_2 reg-i any))]
 )
+
 
 ; Note: wires are set to expressions, not values.
 ; This is more true to the actual hardware, since wires correspond to the
