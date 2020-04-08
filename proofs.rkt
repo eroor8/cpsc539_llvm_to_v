@@ -270,3 +270,92 @@
 ;(build-derivations (same-results 9 0
  ;    (label 0 ((rd = mul nsw i32 rd 2) (br label missing)) empty)         
   ;                            (empty rd 1) 0 0 1))
+
+
+;; PASS 2
+;; We want to prove that executing one basic block (at label l) in the source program p is equivalent
+;; to one cycle starting at state l.
+;;  src program ll.p compiles to dest program vv.p_2
+;;  executing block at label l generates register file R2 and jumps to label l2
+;;  running one clock cycle in p3 outputs same register file, jumps to state l2
+
+(define-judgment-form LLVM-Verilog-Union
+  ; Step until we reach return
+  ; p c R -> a
+  ; Where p is the program, c is the starting label and
+  ; R are the input registers
+  #:contract (same-results-p2 ll.lbl-i ll.p ll.R ll.c vv.a)
+  #:mode     (same-results-p2 I     I I  I O)
+  [(-->pass2 ll.p ll.R
+             (mod (always-comb begincase nextstate empty endcase)
+                  (always-sync begincase nextstate vv.case-list endcase) endmodule )
+             vv.R_2)     ; If compilation transforms p to p2
+   (label-lookup ll.p ll.lbl-i ll.l)                   ; and instruction l is changed to l_2
+   (reg-set vv.R_2 nextstate ll.lbl-i vv.R_3)
+   (case-lookup vv.R_3 vv.case-list nextstate vv.l_2)  ; start at specified state  
+   ; Executing block of instrs produces new register file R_11 and jumps to instr l-br at label c_13
+   (-->l+ ll.p ll.R ll.l ll.c_11 ll.lbl-i ll.R_11 ll.l-br ll.c_12 ll.c_13) 
+   (where #t (differentl ll.lbl-i ll.c_13))  
+   (where #f (differentl ll.lbl-i ll.c_12))  
+   ; Executing instruction l_2 produces the same register file and also jumps to instr l-br at label c_13
+   (cycle vv.R_3
+         empty
+         (always-sync begincase nextstate vv.case-list endcase)
+         (always-comb begincase nextstate empty endcase)
+         ((((ll.R_11 laststate ll.lbl-i) nextstate ll.c_13) result-reg X) finished 0)
+         empty)   
+   ------------------------------ "SameBr2"
+   (same-results-p2 ll.lbl-i ll.p ll.R ll.c_11 1)]
+  )
+
+; Example : branch instruction
+(judgment-holds (-->pass2 (label 0 (br label 4) (label 4 (br label ten) empty))
+   (empty rd 1)
+   (mod
+   (always-comb begincase nextstate empty endcase)
+   (always-sync
+    begincase
+    nextstate
+    ((empty 4 ((laststate <= nextstate) ((nextstate <= ten) end)))
+     0
+     ((laststate <= nextstate) ((nextstate <= 4) end)))
+    endcase)
+   endmodule)
+   (((((empty rd 1) laststate X) nextstate entry) result-reg X) finished 0)))
+(judgment-holds (label-lookup (label 0 (br label 4) (label 4 (br label ten) empty)) 0 (br label 4)))
+
+(judgment-holds (-->l (label 0 (br label 4) (label 4 (br label ten) empty))
+                      (empty rd 1) (br label 4) 0 0 (empty rd 1) (br label ten) 0 4))
+
+
+
+
+(judgment-holds (case-lookup
+                 (((((empty rd 1) laststate X) nextstate 0) result-reg X) finished 0)
+                 ((empty 4 ((laststate <= nextstate) ((nextstate <= ten) end)))
+                 0
+                 ((laststate <= nextstate) ((nextstate <= 4) end)))
+                 nextstate
+                 ((laststate <= nextstate) ((nextstate <= 4) end))))
+
+(judgment-holds (same-results-p2 0 (label 0 (br label 4) (label 4 (br label ten) empty)) (empty rd 1) 2 any) any)
+
+(term "Test add")
+(judgment-holds (-->pass2 (label 0 ((rm = mul nsw i32 rd 2) (br label 9))(label 9 (ret i32 rm) empty))
+   (empty rd 1)
+   (mod
+   (always-comb begincase nextstate empty endcase)
+   (always-sync
+    begincase
+    nextstate
+    ((empty 9 ((finished <= 1) ((result-reg <= rm) end)))
+     0
+     ((rm <= (rd * 2)) ((laststate <= nextstate) ((nextstate <= 9) end))))
+    endcase)
+   endmodule)
+   ((((((empty rd 1) rm X) laststate X) nextstate entry) result-reg X)
+   finished
+   0)))
+
+(judgment-holds (same-results-p2 0 (label 0 ((rm = mul nsw i32 rd 2) (br label 9))(label 9 (ret i32 rm) empty)) (empty rd 1) 2 any) any)
+
