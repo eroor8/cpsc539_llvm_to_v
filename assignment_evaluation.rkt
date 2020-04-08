@@ -29,8 +29,8 @@
   #:contract (-->nb R R W l-nonblocking R l-nonblocking)
   #:mode     (-->nb I I I I          O O         )
   ; Lookup input register in the register file, multiply by the value, set reg-i
-  [(eval-e R W e a)
-   (reg-set R_1 reg-i a R_2)
+  [(eval-e R W e a-or-case)
+   (reg-set R_1 reg-i a-or-case R_2)
    -----
    (-->nb R R_1 W ((reg-i <= e) l-nonblocking) R_2 l-nonblocking)]
   )
@@ -67,7 +67,13 @@
    ----- 
    (eval-always-comb R W
        (always-comb begincase reg-i case-list endcase)
-   W_1)]
+       W_1)
+   ]
+  [----- 
+   (eval-always-comb R W
+       (always-comb begincase reg-i empty endcase)
+       W)
+  ]
 )
 
 (define-judgment-form  MyVerilog
@@ -94,24 +100,27 @@
 (define-judgment-form  MyVerilog
   #:contract (run-v R W sync-logic-block comb-logic-block a)
   #:mode     (run-v I I I                I                O)
-  [(cycle R (W finished X) sync-logic-block comb-logic-block R_1 W_1)
+  [(reg-lookup R finished X)
+   (cycle R W sync-logic-block comb-logic-block R_1 W_1)
    (run-v R_1 W_1 sync-logic-block comb-logic-block a)
    ----- 
    (run-v
     R
-    (W finished X)
+    W
     sync-logic-block comb-logic-block a)]
-  [(cycle R (W finished 0) sync-logic-block comb-logic-block R_1 W_1)
+  [(reg-lookup R finished 0)
+   (cycle R W sync-logic-block comb-logic-block R_1 W_1)
    (run-v R_1 W_1 sync-logic-block comb-logic-block a)
    ----- 
    (run-v
     R
-    (W finished 0)
+    W
     sync-logic-block comb-logic-block a)]
-  [----- 
+  [(reg-lookup R finished 1)
+   (reg-lookup R result-reg a)
+   ----- 
    (run-v
-    (R result-reg a)
-    (W finished   1)
+    R W
     sync-logic-block comb-logic-block a)]
 )
 

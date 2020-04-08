@@ -11,9 +11,9 @@
   ; Update labels.
   ; Assume no collisions here...
   [(label-list-lookup lbl-list lbl-i lbl-i_2)
-   (where #t (different lbl-i_2 UNDEFINED))
+   (where #t (different lbl-i_2 X))
    (replace-phis l lbl-list l_2)
-   (label-list-lookup lbl-list lbl-i_1 UNDEFINED)
+   (label-list-lookup lbl-list lbl-i_1 X)
    -----
    (replace-phis
       ((reg-i = phi t [a-or-r lbl-i] [a-or-r_1 lbl-i_1]) l)
@@ -24,8 +24,8 @@
   [(replace-phis l lbl-list l_2)
    (label-list-lookup lbl-list lbl-i_1 lbl-i_2)
    (label-list-lookup lbl-list lbl-i lbl-i_3)
-   (where #t (different lbl-i_2 UNDEFINED))
-   (where #t (different lbl-i_3 UNDEFINED))
+   (where #t (different lbl-i_2 X))
+   (where #t (different lbl-i_3 X))
    -----
    (replace-phis
       ((reg-i = phi t [a-or-r lbl-i] [a-or-r_1 lbl-i_1]) l)
@@ -35,8 +35,8 @@
    ]
   [(replace-phis l lbl-list l_2)
    (label-list-lookup lbl-list lbl-i_1 lbl-i_2)
-   (label-list-lookup lbl-list lbl-i UNDEFINED)
-   (where #t (different lbl-i_2 UNDEFINED))
+   (label-list-lookup lbl-list lbl-i X)
+   (where #t (different lbl-i_2 X))
    -----
    (replace-phis
       ((reg-i = phi t [a-or-r lbl-i] [a-or-r_1 lbl-i_1]) l)
@@ -44,8 +44,8 @@
       ((reg-i = phi t [a-or-r lbl-i] [a-or-r_1 lbl-i_2]) l_2)
    )
    ]
-  [(label-list-lookup lbl-list lbl-i UNDEFINED)
-   (label-list-lookup lbl-list lbl-i_1 UNDEFINED)
+  [(label-list-lookup lbl-list lbl-i X)
+   (label-list-lookup lbl-list lbl-i_1 X)
    (replace-phis l lbl-list l_2)
    -----
    (replace-phis
@@ -99,22 +99,22 @@
   [-----
    (-->pass1a integer_0 empty empty empty)
    ]
-  [(-->pass1a (addi integer_0 1) p p_2 lbl-list)
+  [(-->pass1a (addil integer_0 1) p p_2 lbl-list)
    -----
    (-->pass1a integer_0 (label lbl-i l-br p)
               (label lbl-i l-br p_2)
               lbl-list
    )
    ]
-  [(-->pass1a (addi integer_0 1) (label integer_0 l_2 p_1) p_2 lbl-list)
-   (label-list-lookup lbl-list integer_0 UNDEFINED)
+  [(-->pass1a (addil integer_0 1) (label integer_0 l_2 p_1) p_2 lbl-list)
+   (label-list-lookup lbl-list integer_0 X)
    -----
    (-->pass1a integer_0 (label lbl-i (l l_2) p_1)
               (label lbl-i (l (br label integer_0)) p_2)
               (lbl-list lbl-i integer_0)
    )
    ]
-  [(-->pass1a (addi integer_0 1) (label integer_0 l_2 p_1) p_2 lbl-list)
+  [(-->pass1a (addil integer_0 1) (label integer_0 l_2 p_1) p_2 lbl-list)
    (label-list-lookup lbl-list integer_0 integer_1)
    -----
    (-->pass1a integer_0 (label lbl-i (l l_2) p_1)

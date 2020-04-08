@@ -6,6 +6,7 @@
 ;   assume only blocking assignments in comb blocks,
 ;      only nonblocking assignments in sync. blocks
 (require
+   "llvm_model.rkt"
    racket/match
    redex/reduction-semantics)
 
@@ -17,18 +18,16 @@
   ;                  <sync block>
   ;               endmodule'
   ; Limitation: only one block of each type
-  [io-type ::= input output none]                ; used in declarations
-  [rw-type ::= reg wire]                         ; reg or wire
-  [index-decl ::= none [integer : integer]]      ; used to specify bit width
   [a ::= integer X]
+  [a-or-case ::= a case-i]
   [reg-i ::= variable-not-otherwise-mentioned]   ; reg index
   [wire-i ::= variable-not-otherwise-mentioned]  ; reg index
+  [case-i ::= a variable-not-otherwise-mentioned]  ; reg index
   [rw-i ::= reg-i wire-i]                        ; a register or wire index
   [R ::= empty                                   ; Registers
-         (R reg-i a)]
+         (R reg-i any)]
   [W ::= empty                                   ; Wires
      (W wire-i e)]
-  [state ::= a]
   ; Expressions : wires, registers, values, computation results
   [e ::= (e == e)
          (e < e)
@@ -44,10 +43,14 @@
          (e ? e : e)
          reg-i
          wire-i
+         case-i
          a
          ]
+  [p ::= (mod comb-logic-block sync-logic-block endmodule)
+         (mod sync-logic-block endmodule)
+  ]
   [l ::= l-blocking l-nonblocking]
-  [case-list ::= empty (case-list a l)]      ; case statement option
+  [case-list ::= empty (case-list case-i l)]      ; case statement option
 
   ; Combinational and synchronous logic blocks must contain blocking and
   ; non blocking assignments respectively.
@@ -75,21 +78,18 @@
 (define-metafunction MyVerilog
   same : any any -> any
   [(same any_1 any_2) ,(equal? (term any_1) (term any_2))])
-(define-metafunction MyVerilog
-  different : any any -> any
-  [(different any_1 any_2) ,(not (equal? (term any_1) (term any_2)))])
 (define-metafunction MyVerilog    ; define more than
   greater : any any -> any
   [(greater any_1 any_2) ,(> (term any_1) (term any_2))])
 (define-metafunction MyVerilog    ; define less than
   lesser : any any -> any
   [(lesser any_1 any_2) ,(< (term any_1) (term any_2))])
-(define-metafunction MyVerilog    ; define subtraction
-  addi : any any -> any
-  [(addi any any_1) , (+ (term any) (term any_1))])
-(define-metafunction MyVerilog    ; define subtraction
+(define-metafunction MyLLVM    ; define multiplication
   multiply : any any -> any
-  [(multiply any any_1) , (* (term any) (term any_1))])
+  [(multiply any_1 any_2) , (* (term any_1) (term any_2))])
+(define-metafunction MyLLVM    ; define addiltion
+  addi : any any -> any
+  [(addi any_1 any_2) , (+ (term any_1) (term any_2))])
 (define-metafunction MyVerilog    ; define subtraction
   subi : any any -> any
   [(subi any any_1) , (+ (term any) (- (term any_1)))])
@@ -100,20 +100,23 @@
      (side-condition (< (term any_2) (term 1)))]
     [(shift-left any_1 any_2)
      (multiply 2 (shift-left any_1 (addi any_2 -1)))])
+(define-metafunction MyLLVM
+  different : any any -> any
+  [(different any_1 any_2) ,(not (equal? (term any_1) (term any_2)))])
 
 
 
 ; Lookup reg-i index to find corresponding value
 (define-judgment-form MyVerilog
-  #:contract (reg-lookup R reg-i a)
+  #:contract (reg-lookup R reg-i any)
   #:mode (reg-lookup I I O)
   ; Matching key is last pair
   [----- "Lookup-Reg-Last"
-   (reg-lookup (R reg-i a) reg-i a)]
+   (reg-lookup (R reg-i any_0) reg-i any_0)]
   ; Matching key is not last pair
-  [(reg-lookup R reg-i_2 a_2)
+  [(reg-lookup R reg-i_2 any_2)
    ----- "Lookup-Reg-NotLast"
-   (reg-lookup (R reg-i_1 a_1) reg-i_2 a_2)]
+   (reg-lookup (R reg-i_1 any_1) reg-i_2 any_2)]
 )
 
 ; Lookup reg-i index to find corresponding value
@@ -134,29 +137,29 @@
   #:contract (case-lookup R case-list reg-i l)
   #:mode     (case-lookup I I         I     O)
   ; Matching key is last pair
-  [(reg-lookup R reg-i a)
+  [(reg-lookup R reg-i any_0)
    -----
-   (case-lookup R (case-list a l) reg-i l)]
+   (case-lookup R (case-list any_0 l) reg-i l)]
   ; Matching key is not last pair
   [(case-lookup R case-list reg-i l_2)
    -----
-   (case-lookup R (case-list a l) reg-i l_2)]
+   (case-lookup R (case-list any_0 l) reg-i l_2)]
 )
 
 
 ; Set register reg-i to value a in new register file
 (define-judgment-form  MyVerilog
-  #:contract (reg-set R reg-i a R)
+  #:contract (reg-set R reg-i any R)
   #:mode (reg-set I I I O)
   ; Replace existing key
   [
    ----- "Set-Reg-Existing"
-   (reg-set (R reg-i a) reg-i a_2 (R reg-i a_2))]
-  [(reg-lookup R reg-i_2 a_4)
+   (reg-set (R reg-i any) reg-i any_2 (R reg-i any_2))]
+  [(reg-lookup R reg-i_2 any_4)
    (where #t (different reg-i reg-i_2))
-   (reg-set R reg-i_2 a_2 R_2)
+   (reg-set R reg-i_2 any_2 R_2)
    ----- "Set-Reg-Existing-Inner"
-   (reg-set (R reg-i a) reg-i_2 a_2 (R_2 reg-i a))]
+   (reg-set (R reg-i any) reg-i_2 any_2 (R_2 reg-i any))]
 )
 
 ; Note: wires are set to expressions, not values.

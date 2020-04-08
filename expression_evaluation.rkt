@@ -262,9 +262,9 @@
 
 ; Evaluation of an expression
 (define-judgment-form  MyVerilog ; evaluate expression
-  #:contract (eval-e R W e a)
+  #:contract (eval-e R W e a-or-case)
   #:mode (eval-e I I I O)
-  [(-->* R W e a)
+  [(-->* R W e a-or-case)
    -----
-   (eval-e R W e a)]
+   (eval-e R W e a-or-case)]
 )

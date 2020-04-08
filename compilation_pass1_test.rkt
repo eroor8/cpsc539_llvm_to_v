@@ -68,6 +68,7 @@
 (term "Test relabelling instrs")
 (judgment-holds (-->pass1a 0 empty empty empty))
 (judgment-holds (-->pass1a 0 (label testlbl (ret i32 rv) empty) (label testlbl (ret i32 rv) empty) empty))
+(judgment-holds (-->pass1a 0 (label testlbl (ret i32 rv) empty) (label testlbl (ret i32 rv) empty) empty))
 (judgment-holds (-->pass1a 0 (label testlbl ((g = add nsw i32 g 1) (ret i32 g)) empty)
                           (label
    testlbl
@@ -179,4 +180,35 @@
          ((rfive = add nsw i32 ri 1) (br label 6))
          (label 6 (br label one) (label three (ret i32 rv) empty)))))))))
                           ))
+
+; Check that the new version still works!
+;(judgment-holds (eval
+;      (label main (br label one)
+;      (label one ((rv = phi i32 (1 main) (rfour 6)) (br label 1))
+;      (label 1 ((ri = phi i32 (1 main) (rfive 6)) (br label 2))
+;      (label 2 ((rtwo = icmp sle i32 ri rd) (br label 3))
+;      (label 3 (br i1 rtwo label two label three)
+;      (label two ((rfour = mul nsw i32 rv 2) (br label 5))
+;      (label 5 ((rfive = add nsw i32 ri 1) (br label 6))
+;      (label 6 (br label one)
+;      (label three (ret i32 rv) empty)))))))))
+;(empty rd 3) a) a)
+
+(judgment-holds (eval
+     (label main (br label one)
+     (label one ((rv = phi i32 [1 main] [rfour 6]) ((ri = phi i32 [1 main] [rfive 6]) (br label 2)))
+     (label 2 ((rtwo = icmp sle i32 ri rd) (br label 3))
+     (label 3 (br i1 rtwo label two label three)
+     (label two ((rfour = mul nsw i32 rv 2) (br label 5))
+     (label 5 ((rfive = add nsw i32 ri 1) (br label 6))
+     (label 6 (br label one)
+     (label three (ret i32 rv) empty)))))))) (empty rd 2) a) a)
+
+
+(judgment-holds (eval
+     (label main (br label one)
+     (label one ((rv = phi i32 [1 main] [rfour two]) ((ri = phi i32 [1 main] [rfive two]) ((rtwo = icmp sle i32 ri rd) (br i1 rtwo label two label three))))
+     (label two ((rfour = mul nsw i32 rv 2) ((rfive = add nsw i32 ri 1)(br label one)))
+     (label three (ret i32 rv) empty)))) (empty rd 2) a) a)
+
 
