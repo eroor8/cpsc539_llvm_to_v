@@ -195,3 +195,7 @@
      (label three (ret i32 rv) empty)))) (empty rd 2) a) a)
 
 
+(judgment-holds (-->pass1 (label testlbl (br label 0) empty) any ) any)
+(judgment-holds (-->pass1 (label testlbl ((g = add nsw i32 g 1) (br label 9)) empty)
+   (label testlbl ((g = add nsw i32 g 1) (br label 0))
+   (label 0 (br label 9) empty))))

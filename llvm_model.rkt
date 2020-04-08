@@ -242,3 +242,20 @@
    ----- "Step-Mul"
    (eval p R a)]
 )
+
+
+
+
+;(test-judgment-holds same-results
+;  (derivation `(same-results 9 empty empty (ret t reg-i) 0 0 ) "Same"
+;              (list
+;               
+ ;              )))
+  
+;(test-judgment-holds same-results
+;  (derivation `(same-results 9 empty empty (ret t reg-i) 0 0 ) "Same"
+;              (list
+;               
+;               )))
+
+
